@@ -26,14 +26,15 @@ impl Indexer {
             let locations = adapter.scan().await;
             stats.sessions_found += locations.len();
 
-            let db = self.db.lock().await;
-            let queries = DbQueries::new(&db);
-
             let mut indexed_paths = Vec::new();
 
             for loc in &locations {
                 let hash = compute_hash(loc);
-                let existing = queries.get_source_hash(&loc.path.to_string_lossy()).ok().flatten();
+                let existing = {
+                    let db = self.db.lock().await;
+                    let queries = DbQueries::new(&db);
+                    queries.get_source_hash(&loc.path.to_string_lossy()).ok().flatten()
+                };
 
                 if existing.as_ref() == Some(&hash) {
                     stats.sessions_skipped += 1;
@@ -44,6 +45,8 @@ impl Indexer {
                 match adapter.parse_session(&loc.path).await {
                     Ok(normalized) => {
                         let session_id = normalized.session.id.clone();
+                        let db = self.db.lock().await;
+                        let queries = DbQueries::new(&db);
                         if let Err(e) = queries.upsert_session(&normalized.session) {
                             tracing::warn!("Failed to upsert session {}: {}", session_id, e);
                             stats.sessions_errored += 1;
@@ -67,12 +70,15 @@ impl Indexer {
                 indexed_paths.push(loc.path.to_string_lossy().to_string());
             }
 
-            if let Ok(removed) = queries.mark_stale_sessions(&indexed_paths) {
-                stats.sessions_removed = removed;
-            }
-
-            if let Err(e) = queries.rebuild_fts() {
-                tracing::warn!("Failed to rebuild FTS index: {}", e);
+            {
+                let db = self.db.lock().await;
+                let queries = DbQueries::new(&db);
+                if let Ok(removed) = queries.mark_stale_sessions(&indexed_paths) {
+                    stats.sessions_removed = removed;
+                }
+                if let Err(e) = queries.rebuild_fts() {
+                    tracing::warn!("Failed to rebuild FTS index: {}", e);
+                }
             }
         }
 
@@ -107,10 +113,6 @@ impl Indexer {
 
     pub async fn check_active_sessions(&self) -> Result<Vec<String>, String> {
         let available = self.registry.detect_available().await;
-        let db = self.db.lock().await;
-        let queries = DbQueries::new(&db);
-
-        let current_active = queries.get_active_session_ids().map_err(|e| e.to_string())?;
         let mut new_active = Vec::new();
 
         for adapter in &available {
@@ -128,15 +130,21 @@ impl Indexer {
             }
         }
 
-        for id in &current_active {
-            if !new_active.contains(id) {
-                let _ = queries.set_session_active(id, false);
-            }
-        }
+        {
+            let db = self.db.lock().await;
+            let queries = DbQueries::new(&db);
+            let current_active = queries.get_active_session_ids().map_err(|e| e.to_string())?;
 
-        for id in &new_active {
-            if !current_active.contains(id) {
-                let _ = queries.set_session_active(id, true);
+            for id in &current_active {
+                if !new_active.contains(id) {
+                    let _ = queries.set_session_active(id, false);
+                }
+            }
+
+            for id in &new_active {
+                if !current_active.contains(id) {
+                    let _ = queries.set_session_active(id, true);
+                }
             }
         }
 

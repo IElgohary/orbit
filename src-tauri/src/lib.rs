@@ -5,6 +5,9 @@ pub mod indexer;
 pub mod commands;
 pub mod watcher;
 
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 pub fn open_db() -> Result<rusqlite::Connection, Box<dyn std::error::Error>> {
     let app_dir = dirs::data_dir()
         .ok_or("Cannot determine app data directory")?
@@ -19,8 +22,19 @@ pub fn open_db() -> Result<rusqlite::Connection, Box<dyn std::error::Error>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let conn = open_db().expect("Failed to open database");
+    let db = Arc::new(Mutex::new(conn));
+
+    let registry = Arc::new(adapters::AdapterRegistry::new());
+    let indexer = Arc::new(indexer::Indexer::new(db.clone(), registry.clone()));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .manage(commands::AppState {
+            db,
+            registry,
+            indexer,
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_sessions,
             commands::get_session_messages,
