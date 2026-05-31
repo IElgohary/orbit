@@ -1,50 +1,41 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./index.css";
+import { useEffect } from "react";
+import { Sidebar } from "./components/Sidebar/Sidebar";
+import { TranscriptView } from "./components/Transcript/TranscriptView";
+import { ActionBar } from "./components/ActionBar/ActionBar";
+import { useAppStore } from "./store/useAppStore";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const loadSessions = useAppStore((s) => s.loadSessions);
+  const refreshActiveSessions = useAppStore((s) => s.refreshActiveSessions);
+  const selectedSessionId = useAppStore((s) => s.selectedSessionId);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  useEffect(() => {
+    loadSessions();
+    const interval = setInterval(refreshActiveSessions, 5000);
+    return () => clearInterval(interval);
+  }, [loadSessions, refreshActiveSessions]);
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <div className="flex h-screen bg-bg-primary">
+      <Sidebar />
+      <main className="flex-1 flex flex-col min-w-0">
+        {selectedSessionId ? (
+          <>
+            <TranscriptView />
+            <ActionBar />
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <h2 className="text-text-secondary text-lg">Orbit</h2>
+              <p className="text-text-muted text-sm mt-1">
+                Select a session to view its transcript
+              </p>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
   );
 }
 
