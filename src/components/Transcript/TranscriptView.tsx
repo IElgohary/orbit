@@ -13,8 +13,8 @@ export function TranscriptView() {
   const virtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 100,
-    overscan: 20,
+    estimateSize: () => 120,
+    overscan: 5,
   });
 
   useEffect(() => {
@@ -32,33 +32,38 @@ export function TranscriptView() {
   }
 
   return (
-    <div ref={parentRef} className="flex-1 overflow-y-auto">
-      <div className="max-w-3xl mx-auto px-6 py-4">
-        <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            width: "100%",
-            position: "relative",
-          }}
-        >
-          {virtualizer.getVirtualItems().map((virtualItem) => {
-            const message = messages[virtualItem.index];
-            return (
-              <div
-                key={virtualItem.key}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualItem.start}px)`,
-                }}
-              >
+    <div
+      ref={parentRef}
+      className="flex-1 overflow-y-auto"
+    >
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const message = messages[virtualItem.index];
+          return (
+            <div
+              key={virtualItem.key}
+              data-index={virtualItem.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              <div className="max-w-3xl mx-auto px-6 py-2">
                 <MessageBubble message={message} />
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
