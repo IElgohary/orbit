@@ -553,9 +553,7 @@ pub async fn save_app_setting(
 ) -> Result<(), String> {
     let db = state.db.lock().await;
     let queries = DbQueries::new(&db);
-    queries
-        .set_setting(&key, &value)
-        .map_err(|e| e.to_string())
+    queries.set_setting(&key, &value).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

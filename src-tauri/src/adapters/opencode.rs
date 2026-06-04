@@ -513,7 +513,11 @@ impl OpenCodeAdapter {
             }
             serde_json::from_str::<Value>(m)
                 .ok()
-                .and_then(|v| v.get("id").and_then(|id| id.as_str()).map(ToString::to_string))
+                .and_then(|v| {
+                    v.get("id")
+                        .and_then(|id| id.as_str())
+                        .map(ToString::to_string)
+                })
                 .or_else(|| Some(m.to_string()))
         });
 
@@ -799,10 +803,7 @@ mod tests {
 
         assert_eq!(
             dirs,
-            vec![
-                home.join(".local/share/opencode"),
-                config.join("opencode"),
-            ]
+            vec![home.join(".local/share/opencode"), config.join("opencode"),]
         );
     }
 

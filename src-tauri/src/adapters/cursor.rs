@@ -354,10 +354,9 @@ impl AgentAdapter for CursorAdapter {
                                     .unwrap_or(serde_json::Value::Null);
                                 if let Some(fp) = cursor_extract_file_path(&name, &input_value) {
                                     if project_path.is_empty() {
-                                        project_path = infer_project_from_file_path(
-                                                &fp, encoded_project,
-                                            )
-                                            .unwrap_or_else(|| encoded_project.to_string());
+                                        project_path =
+                                            infer_project_from_file_path(&fp, encoded_project)
+                                                .unwrap_or_else(|| encoded_project.to_string());
                                     }
                                     let op = cursor_file_operation_for(&name);
                                     file_touches.push(FileTouch {
