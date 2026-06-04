@@ -57,8 +57,10 @@ fn run_osascript(script: &str, command: &str) -> Result<(), String> {
 #[cfg(target_os = "linux")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LinuxTerminalArgStyle {
-    DashDash,
-    DashE,
+    DoubleDashArgs,
+    DashEArgs,
+    DashXArgs,
+    DashEString,
     Xdg,
 }
 
@@ -90,84 +92,94 @@ const LINUX_TERMINALS: &[LinuxTerminalDefinition] = &[
         id: "kgx",
         name: "GNOME Console",
         executable: "kgx",
-        arg_style: LinuxTerminalArgStyle::DashDash,
+        arg_style: LinuxTerminalArgStyle::DashEString,
     },
     LinuxTerminalDefinition {
         id: "gnome-terminal",
         name: "GNOME Terminal",
         executable: "gnome-terminal",
-        arg_style: LinuxTerminalArgStyle::DashDash,
+        arg_style: LinuxTerminalArgStyle::DoubleDashArgs,
     },
     LinuxTerminalDefinition {
         id: "konsole",
         name: "Konsole",
         executable: "konsole",
-        arg_style: LinuxTerminalArgStyle::DashE,
+        arg_style: LinuxTerminalArgStyle::DashEArgs,
     },
     LinuxTerminalDefinition {
         id: "xfce4-terminal",
         name: "XFCE Terminal",
         executable: "xfce4-terminal",
-        arg_style: LinuxTerminalArgStyle::DashDash,
+        arg_style: LinuxTerminalArgStyle::DashXArgs,
     },
     LinuxTerminalDefinition {
         id: "mate-terminal",
         name: "MATE Terminal",
         executable: "mate-terminal",
-        arg_style: LinuxTerminalArgStyle::DashDash,
+        arg_style: LinuxTerminalArgStyle::DashXArgs,
     },
     LinuxTerminalDefinition {
         id: "tilix",
         name: "Tilix",
         executable: "tilix",
-        arg_style: LinuxTerminalArgStyle::DashDash,
+        arg_style: LinuxTerminalArgStyle::DashEString,
     },
     LinuxTerminalDefinition {
         id: "alacritty",
         name: "Alacritty",
         executable: "alacritty",
-        arg_style: LinuxTerminalArgStyle::DashE,
+        arg_style: LinuxTerminalArgStyle::DashEArgs,
     },
     LinuxTerminalDefinition {
         id: "kitty",
         name: "Kitty",
         executable: "kitty",
-        arg_style: LinuxTerminalArgStyle::DashE,
+        arg_style: LinuxTerminalArgStyle::DashEArgs,
     },
     LinuxTerminalDefinition {
         id: "ghostty",
         name: "Ghostty",
         executable: "ghostty",
-        arg_style: LinuxTerminalArgStyle::DashE,
+        arg_style: LinuxTerminalArgStyle::DashEArgs,
     },
     LinuxTerminalDefinition {
         id: "wezterm",
         name: "WezTerm",
         executable: "wezterm",
-        arg_style: LinuxTerminalArgStyle::DashE,
+        arg_style: LinuxTerminalArgStyle::DashEArgs,
     },
     LinuxTerminalDefinition {
         id: "xterm",
         name: "xterm",
         executable: "xterm",
-        arg_style: LinuxTerminalArgStyle::DashE,
+        arg_style: LinuxTerminalArgStyle::DashEArgs,
     },
 ];
 
 #[cfg(target_os = "linux")]
 fn linux_terminal_args(style: LinuxTerminalArgStyle, command: &str) -> Vec<String> {
     match style {
-        LinuxTerminalArgStyle::DashDash => vec![
+        LinuxTerminalArgStyle::DoubleDashArgs => vec![
             "--".to_string(),
             "sh".to_string(),
             "-lc".to_string(),
             command.to_string(),
         ],
-        LinuxTerminalArgStyle::DashE => vec![
+        LinuxTerminalArgStyle::DashEArgs => vec![
             "-e".to_string(),
             "sh".to_string(),
             "-lc".to_string(),
             command.to_string(),
+        ],
+        LinuxTerminalArgStyle::DashXArgs => vec![
+            "-x".to_string(),
+            "sh".to_string(),
+            "-lc".to_string(),
+            command.to_string(),
+        ],
+        LinuxTerminalArgStyle::DashEString => vec![
+            "-e".to_string(),
+            format!("sh -lc {}", crate::shell_quote::shell_quote(command)),
         ],
         LinuxTerminalArgStyle::Xdg => {
             vec!["sh".to_string(), "-lc".to_string(), command.to_string()]
@@ -191,7 +203,7 @@ fn linux_arg_style_for_executable(executable: &str) -> LinuxTerminalArgStyle {
         .iter()
         .find(|terminal| terminal.executable == basename)
         .map(|terminal| terminal.arg_style)
-        .unwrap_or(LinuxTerminalArgStyle::DashE)
+        .unwrap_or(LinuxTerminalArgStyle::DashEArgs)
 }
 
 #[cfg(target_os = "linux")]
@@ -562,33 +574,33 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     #[test]
-    fn linux_terminal_args_match_terminal_style() {
-        assert_eq!(
-            linux_terminal_args(LinuxTerminalArgStyle::DashDash, "echo hello"),
-            vec![
-                "--".to_string(),
-                "sh".to_string(),
-                "-lc".to_string(),
-                "echo hello".to_string(),
-            ]
-        );
-        assert_eq!(
-            linux_terminal_args(LinuxTerminalArgStyle::DashE, "echo hello"),
-            vec![
-                "-e".to_string(),
-                "sh".to_string(),
-                "-lc".to_string(),
-                "echo hello".to_string(),
-            ]
-        );
-        assert_eq!(
-            linux_terminal_args(LinuxTerminalArgStyle::Xdg, "echo hello"),
-            vec![
-                "sh".to_string(),
-                "-lc".to_string(),
-                "echo hello".to_string(),
-            ]
-        );
+    fn linux_terminal_args_match_terminal_definitions() {
+        let cases: &[(&str, &[&str])] = &[
+            ("xdg-terminal-exec", &["sh", "-lc", "echo hello"]),
+            ("gnome-terminal", &["--", "sh", "-lc", "echo hello"]),
+            ("kgx", &["-e", "sh -lc 'echo hello'"]),
+            ("xfce4-terminal", &["-x", "sh", "-lc", "echo hello"]),
+            ("mate-terminal", &["-x", "sh", "-lc", "echo hello"]),
+            ("tilix", &["-e", "sh -lc 'echo hello'"]),
+            ("konsole", &["-e", "sh", "-lc", "echo hello"]),
+            ("alacritty", &["-e", "sh", "-lc", "echo hello"]),
+            ("kitty", &["-e", "sh", "-lc", "echo hello"]),
+            ("ghostty", &["-e", "sh", "-lc", "echo hello"]),
+            ("wezterm", &["-e", "sh", "-lc", "echo hello"]),
+            ("xterm", &["-e", "sh", "-lc", "echo hello"]),
+        ];
+
+        for (terminal_id, expected) in cases {
+            let terminal = linux_definition_for_id(terminal_id).unwrap();
+            assert_eq!(
+                linux_terminal_args(terminal.arg_style, "echo hello"),
+                expected
+                    .iter()
+                    .map(|arg| arg.to_string())
+                    .collect::<Vec<_>>(),
+                "unexpected argv for {terminal_id}"
+            );
+        }
     }
 
     #[cfg(target_os = "linux")]
@@ -600,7 +612,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(resolved.executable, "kitty");
-        assert_eq!(resolved.arg_style, LinuxTerminalArgStyle::DashE);
+        assert_eq!(resolved.arg_style, LinuxTerminalArgStyle::DashEArgs);
     }
 
     #[cfg(target_os = "linux")]
@@ -613,7 +625,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(resolved.executable, terminal_env);
-        assert_eq!(resolved.arg_style, LinuxTerminalArgStyle::DashE);
+        assert_eq!(resolved.arg_style, LinuxTerminalArgStyle::DashEArgs);
     }
 
     #[cfg(target_os = "linux")]
