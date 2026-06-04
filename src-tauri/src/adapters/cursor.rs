@@ -71,26 +71,34 @@ fn find_session_jsonl(root: &Path, locations: &mut Vec<SessionLocation>) {
                 continue;
             }
 
-            let jsonl_path = session_dir.join(format!("{}.jsonl", session_name));
-            if !jsonl_path.is_file() {
+            let Ok(session_files) = std::fs::read_dir(&session_dir) else {
                 continue;
+            };
+
+            for session_file in session_files.flatten() {
+                let jsonl_path = session_file.path();
+                if !jsonl_path.is_file()
+                    || jsonl_path.extension().and_then(|e| e.to_str()) != Some("jsonl")
+                {
+                    continue;
+                }
+
+                let modified = std::fs::metadata(&jsonl_path)
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .and_then(|t| {
+                        DateTime::from_timestamp(
+                            t.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64,
+                            0,
+                        )
+                    })
+                    .unwrap_or_default();
+
+                locations.push(SessionLocation {
+                    path: jsonl_path,
+                    last_modified: modified,
+                });
             }
-
-            let modified = std::fs::metadata(&jsonl_path)
-                .ok()
-                .and_then(|m| m.modified().ok())
-                .and_then(|t| {
-                    DateTime::from_timestamp(
-                        t.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64,
-                        0,
-                    )
-                })
-                .unwrap_or_default();
-
-            locations.push(SessionLocation {
-                path: jsonl_path,
-                last_modified: modified,
-            });
         }
     }
 }
@@ -523,6 +531,35 @@ mod tests {
                 path_str
             );
         }
+    }
+
+    #[tokio::test]
+    async fn scan_finds_direct_jsonl_with_different_basename_and_skips_nested_subagents() {
+        let tmp = TempDir::new().unwrap();
+        let transcripts = setup_cursor_layout(tmp.path());
+        let session_dir = transcripts.join("33333333-3333-3333-3333-333333333333");
+        fs::create_dir_all(&session_dir).unwrap();
+
+        let direct_path = session_dir.join("conversation.jsonl");
+        fs::write(
+            &direct_path,
+            "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"direct\"}]}}\n",
+        )
+        .unwrap();
+
+        let subagent_dir = session_dir.join("subagents");
+        fs::create_dir_all(&subagent_dir).unwrap();
+        fs::write(
+            subagent_dir.join("sub.jsonl"),
+            "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"sub\"}]}}\n",
+        )
+        .unwrap();
+
+        let adapter = CursorAdapter::new();
+        let locations = scan_with_root(&adapter, tmp.path()).await;
+        let paths: Vec<&Path> = locations.iter().map(|loc| loc.path.as_path()).collect();
+
+        assert_eq!(paths, vec![direct_path.as_path()]);
     }
 
     #[tokio::test]
