@@ -103,14 +103,6 @@ impl OpenCodeAdapter {
         Self::existing_data_dirs_from_candidates(Self::candidate_data_dirs())
     }
 
-    fn data_dir() -> Option<PathBuf> {
-        Self::existing_data_dirs().into_iter().next().or_else(|| {
-            Self::candidate_data_dirs()
-                .into_iter()
-                .find(|dir| dir.exists())
-        })
-    }
-
     fn modified_at(path: &Path) -> DateTime<Utc> {
         std::fs::metadata(path)
             .ok()
