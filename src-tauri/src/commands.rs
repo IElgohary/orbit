@@ -54,6 +54,235 @@ fn run_osascript(script: &str, command: &str) -> Result<(), String> {
     }
 }
 
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LinuxTerminalArgStyle {
+    DashDash,
+    DashE,
+    Xdg,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, Copy)]
+struct LinuxTerminalDefinition {
+    id: &'static str,
+    name: &'static str,
+    executable: &'static str,
+    arg_style: LinuxTerminalArgStyle,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ResolvedLinuxTerminal {
+    executable: String,
+    arg_style: LinuxTerminalArgStyle,
+}
+
+#[cfg(target_os = "linux")]
+const LINUX_TERMINALS: &[LinuxTerminalDefinition] = &[
+    LinuxTerminalDefinition {
+        id: "xdg-terminal-exec",
+        name: "XDG Terminal",
+        executable: "xdg-terminal-exec",
+        arg_style: LinuxTerminalArgStyle::Xdg,
+    },
+    LinuxTerminalDefinition {
+        id: "kgx",
+        name: "GNOME Console",
+        executable: "kgx",
+        arg_style: LinuxTerminalArgStyle::DashDash,
+    },
+    LinuxTerminalDefinition {
+        id: "gnome-terminal",
+        name: "GNOME Terminal",
+        executable: "gnome-terminal",
+        arg_style: LinuxTerminalArgStyle::DashDash,
+    },
+    LinuxTerminalDefinition {
+        id: "konsole",
+        name: "Konsole",
+        executable: "konsole",
+        arg_style: LinuxTerminalArgStyle::DashE,
+    },
+    LinuxTerminalDefinition {
+        id: "xfce4-terminal",
+        name: "XFCE Terminal",
+        executable: "xfce4-terminal",
+        arg_style: LinuxTerminalArgStyle::DashDash,
+    },
+    LinuxTerminalDefinition {
+        id: "mate-terminal",
+        name: "MATE Terminal",
+        executable: "mate-terminal",
+        arg_style: LinuxTerminalArgStyle::DashDash,
+    },
+    LinuxTerminalDefinition {
+        id: "tilix",
+        name: "Tilix",
+        executable: "tilix",
+        arg_style: LinuxTerminalArgStyle::DashDash,
+    },
+    LinuxTerminalDefinition {
+        id: "alacritty",
+        name: "Alacritty",
+        executable: "alacritty",
+        arg_style: LinuxTerminalArgStyle::DashE,
+    },
+    LinuxTerminalDefinition {
+        id: "kitty",
+        name: "Kitty",
+        executable: "kitty",
+        arg_style: LinuxTerminalArgStyle::DashE,
+    },
+    LinuxTerminalDefinition {
+        id: "ghostty",
+        name: "Ghostty",
+        executable: "ghostty",
+        arg_style: LinuxTerminalArgStyle::DashE,
+    },
+    LinuxTerminalDefinition {
+        id: "wezterm",
+        name: "WezTerm",
+        executable: "wezterm",
+        arg_style: LinuxTerminalArgStyle::DashE,
+    },
+    LinuxTerminalDefinition {
+        id: "xterm",
+        name: "xterm",
+        executable: "xterm",
+        arg_style: LinuxTerminalArgStyle::DashE,
+    },
+];
+
+#[cfg(target_os = "linux")]
+fn linux_terminal_args(style: LinuxTerminalArgStyle, command: &str) -> Vec<String> {
+    match style {
+        LinuxTerminalArgStyle::DashDash => vec![
+            "--".to_string(),
+            "sh".to_string(),
+            "-lc".to_string(),
+            command.to_string(),
+        ],
+        LinuxTerminalArgStyle::DashE => vec![
+            "-e".to_string(),
+            "sh".to_string(),
+            "-lc".to_string(),
+            command.to_string(),
+        ],
+        LinuxTerminalArgStyle::Xdg => {
+            vec!["sh".to_string(), "-lc".to_string(), command.to_string()]
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_definition_for_id(id: &str) -> Option<&'static LinuxTerminalDefinition> {
+    LINUX_TERMINALS.iter().find(|terminal| terminal.id == id)
+}
+
+#[cfg(target_os = "linux")]
+fn linux_arg_style_for_executable(executable: &str) -> LinuxTerminalArgStyle {
+    let basename = std::path::Path::new(executable)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(executable);
+
+    LINUX_TERMINALS
+        .iter()
+        .find(|terminal| terminal.executable == basename)
+        .map(|terminal| terminal.arg_style)
+        .unwrap_or(LinuxTerminalArgStyle::DashE)
+}
+
+#[cfg(target_os = "linux")]
+fn resolve_linux_terminal_with<F>(
+    preferred: Option<&str>,
+    terminal_env: Option<&str>,
+    is_available: F,
+) -> Option<ResolvedLinuxTerminal>
+where
+    F: Fn(&str) -> bool,
+{
+    if let Some(preferred) = preferred.and_then(linux_definition_for_id) {
+        if is_available(preferred.executable) {
+            return Some(ResolvedLinuxTerminal {
+                executable: preferred.executable.to_string(),
+                arg_style: preferred.arg_style,
+            });
+        }
+    }
+
+    if let Some(terminal_env) = terminal_env.filter(|value| !value.trim().is_empty()) {
+        if is_available(terminal_env) {
+            return Some(ResolvedLinuxTerminal {
+                executable: terminal_env.to_string(),
+                arg_style: linux_arg_style_for_executable(terminal_env),
+            });
+        }
+    }
+
+    LINUX_TERMINALS.iter().find_map(|terminal| {
+        is_available(terminal.executable).then(|| ResolvedLinuxTerminal {
+            executable: terminal.executable.to_string(),
+            arg_style: terminal.arg_style,
+        })
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn linux_terminal_infos_with<F>(is_available: F) -> Vec<TerminalInfo>
+where
+    F: Fn(&str) -> bool,
+{
+    LINUX_TERMINALS
+        .iter()
+        .map(|terminal| TerminalInfo {
+            id: terminal.id.to_string(),
+            name: terminal.name.to_string(),
+            available: is_available(terminal.executable),
+        })
+        .collect()
+}
+
+#[cfg(target_os = "linux")]
+fn linux_executable_available(executable: &str) -> bool {
+    let executable_path = std::path::Path::new(executable);
+    if executable_path.components().count() > 1 {
+        return executable_path.is_file();
+    }
+
+    std::env::var_os("PATH")
+        .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(executable).is_file()))
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "linux")]
+fn resolve_linux_terminal(preferred: Option<&str>) -> Option<ResolvedLinuxTerminal> {
+    let terminal_env = std::env::var("TERMINAL").ok();
+    resolve_linux_terminal_with(
+        preferred,
+        terminal_env.as_deref(),
+        linux_executable_available,
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn launch_linux_terminal(command: &str, preferred: Option<&str>) -> Result<(), String> {
+    let terminal = resolve_linux_terminal(preferred).ok_or_else(|| {
+        "No supported Linux terminal found. Install xterm, GNOME Terminal, Konsole, Ghostty, WezTerm, Kitty, Alacritty, or set TERMINAL.".to_string()
+    })?;
+
+    let mut process = std::process::Command::new(&terminal.executable);
+    for arg in linux_terminal_args(terminal.arg_style, command) {
+        process.arg(arg);
+    }
+
+    process
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("Failed to launch terminal {}: {}", terminal.executable, e))
+}
+
 #[tauri::command]
 pub async fn get_sessions(
     state: State<'_, AppState>,
@@ -140,13 +369,12 @@ pub async fn launch_resume(state: State<'_, AppState>, session_id: String) -> Re
 
     let cmd = get_resume_command(state, session_id).await?;
 
-    let terminal = preferred.unwrap_or_else(|| "terminal".to_string());
-
     #[cfg(target_os = "macos")]
     {
-        match terminal.as_str() {
+        let terminal = preferred.as_deref().unwrap_or("terminal");
+        match terminal {
             "iterm" | "warp" | "ghostty" => {
-                let app_name = script_terminal_app_name(&terminal)
+                let app_name = script_terminal_app_name(terminal)
                     .ok_or_else(|| format!("Unsupported terminal: {}", terminal))?;
                 let tmp_dir = std::env::temp_dir();
                 let script_path =
@@ -172,11 +400,7 @@ pub async fn launch_resume(state: State<'_, AppState>, session_id: String) -> Re
 
     #[cfg(target_os = "linux")]
     {
-        std::process::Command::new("sh")
-            .arg("-c")
-            .arg(format!("xterm -e {} &", cmd))
-            .spawn()
-            .map_err(|e| e.to_string())?;
+        launch_linux_terminal(&cmd, preferred.as_deref())?;
     }
 
     #[cfg(target_os = "windows")]
@@ -236,29 +460,51 @@ pub async fn get_sync_status(state: State<'_, AppState>) -> Result<SyncStatus, S
 
 #[tauri::command]
 pub async fn detect_terminals() -> Result<Vec<TerminalInfo>, String> {
-    let terminals = vec![
-        TerminalInfo {
-            id: "terminal".to_string(),
-            name: "Terminal".to_string(),
+    #[cfg(target_os = "macos")]
+    {
+        let terminals = vec![
+            TerminalInfo {
+                id: "terminal".to_string(),
+                name: "Terminal".to_string(),
+                available: true,
+            },
+            TerminalInfo {
+                id: "iterm".to_string(),
+                name: "iTerm2".to_string(),
+                available: std::path::Path::new("/Applications/iTerm.app").exists(),
+            },
+            TerminalInfo {
+                id: "warp".to_string(),
+                name: "Warp".to_string(),
+                available: std::path::Path::new("/Applications/Warp.app").exists(),
+            },
+            TerminalInfo {
+                id: "ghostty".to_string(),
+                name: "Ghostty".to_string(),
+                available: std::path::Path::new("/Applications/Ghostty.app").exists(),
+            },
+        ];
+        Ok(terminals)
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Ok(linux_terminal_infos_with(linux_executable_available))
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Ok(vec![TerminalInfo {
+            id: "cmd".to_string(),
+            name: "Command Prompt".to_string(),
             available: true,
-        },
-        TerminalInfo {
-            id: "iterm".to_string(),
-            name: "iTerm2".to_string(),
-            available: std::path::Path::new("/Applications/iTerm.app").exists(),
-        },
-        TerminalInfo {
-            id: "warp".to_string(),
-            name: "Warp".to_string(),
-            available: std::path::Path::new("/Applications/Warp.app").exists(),
-        },
-        TerminalInfo {
-            id: "ghostty".to_string(),
-            name: "Ghostty".to_string(),
-            available: std::path::Path::new("/Applications/Ghostty.app").exists(),
-        },
-    ];
-    Ok(terminals)
+        }])
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        Ok(Vec::new())
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -292,6 +538,71 @@ pub async fn save_app_setting(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_terminal_args_match_terminal_style() {
+        assert_eq!(
+            linux_terminal_args(LinuxTerminalArgStyle::DashDash, "echo hello"),
+            vec![
+                "--".to_string(),
+                "sh".to_string(),
+                "-lc".to_string(),
+                "echo hello".to_string(),
+            ]
+        );
+        assert_eq!(
+            linux_terminal_args(LinuxTerminalArgStyle::DashE, "echo hello"),
+            vec![
+                "-e".to_string(),
+                "sh".to_string(),
+                "-lc".to_string(),
+                "echo hello".to_string(),
+            ]
+        );
+        assert_eq!(
+            linux_terminal_args(LinuxTerminalArgStyle::Xdg, "echo hello"),
+            vec![
+                "sh".to_string(),
+                "-lc".to_string(),
+                "echo hello".to_string(),
+            ]
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn preferred_linux_terminal_wins_when_available() {
+        let resolved =
+            resolve_linux_terminal_with(Some("kitty"), Some("ghostty"), |exe| exe == "kitty")
+                .unwrap();
+
+        assert_eq!(resolved.executable, "kitty");
+        assert_eq!(resolved.arg_style, LinuxTerminalArgStyle::DashE);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn terminal_env_is_used_before_fallbacks() {
+        let resolved =
+            resolve_linux_terminal_with(Some("kitty"), Some("ghostty"), |exe| exe == "ghostty")
+                .unwrap();
+
+        assert_eq!(resolved.executable, "ghostty");
+        assert_eq!(resolved.arg_style, LinuxTerminalArgStyle::DashE);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_terminal_detection_reports_common_terminals() {
+        let terminals = linux_terminal_infos_with(|exe| exe == "kgx" || exe == "xterm");
+
+        assert!(terminals.iter().any(|t| t.id == "kgx" && t.available));
+        assert!(terminals.iter().any(|t| t.id == "xterm" && t.available));
+        assert!(terminals
+            .iter()
+            .any(|t| t.id == "gnome-terminal" && !t.available));
+    }
 
     #[test]
     fn terminal_applescript_reads_command_from_argv() {
