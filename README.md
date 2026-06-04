@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="public/orbit-screenshot.jpg" alt="Orbit session browser">
+  <img src="public/orbit-screenshot.png" alt="Orbit session browser">
 </p>
 
 Orbit is a native session browser for AI coding agents. It finds the session
