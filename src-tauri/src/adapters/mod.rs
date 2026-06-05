@@ -2,6 +2,7 @@ pub mod claude;
 pub mod codex;
 pub mod copilot;
 pub mod cursor;
+pub mod jetbrains;
 pub mod opencode;
 pub mod qoder;
 pub mod warp;
@@ -27,6 +28,9 @@ pub trait AgentAdapter: Send + Sync {
     async fn detect(&self) -> bool;
     async fn scan(&self) -> Vec<SessionLocation>;
     async fn parse_session(&self, path: &Path) -> Result<NormalizedSession, String>;
+    fn supports_resume(&self) -> bool {
+        true
+    }
     fn resume_command(&self, session_id: &str, project_path: &str) -> String;
     async fn is_active(&self, session_path: &Path) -> bool;
 }
@@ -50,6 +54,7 @@ impl AdapterRegistry {
         reg.register(Box::new(codex::CodexAdapter::new()));
         reg.register(Box::new(copilot::CopilotAdapter::new()));
         reg.register(Box::new(cursor::CursorAdapter::new()));
+        reg.register(Box::new(jetbrains::JetBrainsAdapter::new()));
         reg.register(Box::new(opencode::OpenCodeAdapter::new()));
         reg.register(Box::new(qoder::QoderAdapter::new()));
         reg.register(Box::new(warp::WarpAdapter::new()));

@@ -127,6 +127,10 @@ pub async fn get_resume_command(
         .get(&session.1)
         .ok_or_else(|| format!("Adapter {} not found", session.1))?;
 
+    if !adapter.supports_resume() {
+        return Err(format!("{} sessions do not support resume", adapter.name()));
+    }
+
     Ok(adapter.resume_command(&session.0, &session.2))
 }
 

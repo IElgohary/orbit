@@ -10,7 +10,11 @@ export function ActionBar() {
 
   if (!session) return null;
 
+  const resumeDisabled = session.agent === "jetbrains";
+
   const handleCopyResume = async () => {
+    if (resumeDisabled) return;
+
     try {
       const cmd = await invoke<string>("get_resume_command", {
         sessionId: session.id,
@@ -22,6 +26,8 @@ export function ActionBar() {
   };
 
   const handleLaunchResume = async () => {
+    if (resumeDisabled) return;
+
     try {
       await invoke("launch_resume", { sessionId: session.id });
     } catch (e) {
@@ -48,14 +54,18 @@ export function ActionBar() {
       <div className="flex items-center gap-2">
         <button
           onClick={handleCopyResume}
-          className="flex items-center gap-1.5 rounded-md bg-bg-tertiary px-3 py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          disabled={resumeDisabled}
+          title={resumeDisabled ? "JetBrains AI sessions cannot be resumed from Orbit" : undefined}
+          className="flex items-center gap-1.5 rounded-md bg-bg-tertiary px-3 py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-bg-tertiary disabled:hover:text-text-secondary"
         >
           <Copy className="h-3.5 w-3.5" />
           Copy Resume
         </button>
         <button
           onClick={handleLaunchResume}
-          className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-hover"
+          disabled={resumeDisabled}
+          title={resumeDisabled ? "JetBrains AI sessions cannot be resumed from Orbit" : undefined}
+          className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-accent"
         >
           <Play className="h-3.5 w-3.5" />
           Resume
