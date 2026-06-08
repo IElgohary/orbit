@@ -83,14 +83,15 @@ their source session files.
 
 | Agent | Transcript | macOS discovery | macOS resume | Windows discovery | Windows resume | Linux |
 | --- | :---: | :---: | --- | :---: | --- | :---: |
+| Antigravity | ✅ | ✅ | Not available | 🧪 | 📋 Copy command | Planned |
 | Claude Code | ✅ | ✅ | ✅ Launch | 🧪 | 📋 Copy command | Planned |
 | Codex | ✅ | ✅ | ✅ Launch | 🧪 | 📋 Copy command | Planned |
-| GitHub Copilot CLI | ✅ | ✅ | ✅ Launch | 🧪 | 📋 Copy command | Planned |
 | Cursor | ✅ | ✅ | Opens project | 🧪 | 📋 Copy command | Planned |
+| GitHub Copilot CLI | ✅ | ✅ | ✅ Launch | 🧪 | 📋 Copy command | Planned |
 | JetBrains AI | ✅ | ✅ | Not available | 🧪 | 📋 Session ID | Planned |
 | OpenCode | ✅ | ✅ | ✅ Launch | 🧪 | 📋 Copy command | Planned |
-| Warp | ✅ | ✅ | Opens Warp | 🧪 | 📋 Copy command | Planned |
 | Qoder | ✅ | ✅ | Opens Qoder | 🧪 | 📋 Copy command | Planned |
+| Warp | ✅ | ✅ | Opens Warp | 🧪 | 📋 Copy command | Planned |
 
 **Legend:** ✅ supported · 🧪 implemented and unit-tested, native Windows
 verification pending · 📋 shown in a copyable Windows dialog
